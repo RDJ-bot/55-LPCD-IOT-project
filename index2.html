@@ -1,0 +1,1568 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>55 LPCD — Smart Water Distribution</title>
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+      /* ─── RESET & BASE ─────────────────────────────── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --navy: #020c1f;
+        --deep: #04142e;
+        --panel: rgba(6, 28, 60, 0.72);
+        --glass: rgba(0, 200, 180, 0.07);
+        --teal: #00e5c8;
+        --teal2: #00b4d8;
+        --teal3: #0096ff;
+        --accent: #00ffd5;
+        --warn: #ff4d6d;
+        --good: #39ff14;
+        --text: #cde8f0;
+        --muted: #4a7a99;
+        --border: rgba(0, 229, 200, 0.18);
+        --font-head: "Orbitron", sans-serif;
+        --font-body: "Exo 2", sans-serif;
+      }
+
+      html,
+      body {
+        height: 100%;
+        background: var(--navy);
+        color: var(--text);
+        font-family: var(--font-body);
+        overflow-x: hidden;
+      }
+
+      /* ─── CANVAS BACKGROUND ────────────────────────── */
+      #bgCanvas {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      /* ─── GRID OVERLAY ──────────────────────────────── */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        background-image:
+          linear-gradient(rgba(0, 229, 200, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 229, 200, 0.03) 1px, transparent 1px);
+        background-size: 60px 60px;
+        pointer-events: none;
+      }
+
+      /* ─── SCAN LINE ─────────────────────────────────── */
+      body::after {
+        content: "";
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: -100%;
+        z-index: 2;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--teal),
+          transparent
+        );
+        animation: scanLine 8s linear infinite;
+        pointer-events: none;
+        opacity: 0.4;
+      }
+      @keyframes scanLine {
+        to {
+          top: 110%;
+        }
+      }
+
+      /* ─── LAYER ─────────────────────────────────────── */
+      #appLayer {
+        position: relative;
+        z-index: 10;
+        min-height: 100vh;
+      }
+
+      /* ─── LOGIN SCREEN ──────────────────────────────── */
+      #loginScreen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .login-logo {
+        font-family: var(--font-head);
+        font-size: clamp(14px, 4vw, 20px);
+        font-weight: 900;
+        letter-spacing: 4px;
+        color: var(--teal);
+        text-transform: uppercase;
+        margin-bottom: 6px;
+        animation: fadeSlideDown 0.8s ease both;
+      }
+
+      .login-tagline {
+        font-size: 12px;
+        letter-spacing: 6px;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-bottom: 60px;
+        animation: fadeSlideDown 1s ease both;
+      }
+
+      .login-card {
+        width: 100%;
+        max-width: 440px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 48px 40px;
+        backdrop-filter: blur(20px);
+        box-shadow:
+          0 0 60px rgba(0, 229, 200, 0.1),
+          0 0 120px rgba(0, 100, 255, 0.05);
+        animation: fadeSlideUp 1s ease both;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .login-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--teal),
+          var(--teal3),
+          transparent
+        );
+        animation: shimmer 3s ease infinite;
+      }
+      @keyframes shimmer {
+        0%,
+        100% {
+          opacity: 0.4;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      .drop-icon {
+        font-size: 64px;
+        display: block;
+        text-align: center;
+        margin-bottom: 20px;
+        animation: float 4s ease-in-out infinite;
+        filter: drop-shadow(0 0 20px var(--teal));
+      }
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-12px);
+        }
+      }
+
+      .login-title {
+        font-family: var(--font-head);
+        font-size: 22px;
+        font-weight: 700;
+        text-align: center;
+        color: var(--accent);
+        margin-bottom: 8px;
+        letter-spacing: 2px;
+      }
+
+      .login-sub {
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+        margin-bottom: 40px;
+      }
+
+      .btn-login {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(0, 229, 200, 0.08);
+        color: var(--accent);
+        font-family: var(--font-head);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn-login::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          135deg,
+          transparent 40%,
+          rgba(0, 229, 200, 0.12) 100%
+        );
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .btn-login:hover::after {
+        opacity: 1;
+      }
+
+      .btn-login:hover {
+        background: rgba(0, 229, 200, 0.16);
+        border-color: var(--teal);
+        box-shadow: 0 0 30px rgba(0, 229, 200, 0.2);
+        transform: translateY(-2px);
+      }
+
+      .btn-login svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+      }
+
+      .login-footer {
+        text-align: center;
+        margin-top: 28px;
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 1px;
+      }
+
+      /* ─── DASHBOARD ──────────────────────────────────── */
+      #dashboard {
+        display: none;
+        padding-bottom: 60px;
+      }
+
+      /* TOPBAR */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 40px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(2, 12, 31, 0.8);
+        backdrop-filter: blur(20px);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .topbar-brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--teal), var(--teal3));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        box-shadow: 0 0 20px rgba(0, 229, 200, 0.4);
+        animation: pulseBrand 3s ease infinite;
+      }
+      @keyframes pulseBrand {
+        0%,
+        100% {
+          box-shadow: 0 0 20px rgba(0, 229, 200, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 40px rgba(0, 229, 200, 0.7);
+        }
+      }
+
+      .brand-text {
+        font-family: var(--font-head);
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 3px;
+        color: var(--accent);
+      }
+      .brand-text span {
+        display: block;
+        font-size: 9px;
+        font-weight: 400;
+        color: var(--muted);
+        letter-spacing: 5px;
+        margin-top: 2px;
+      }
+
+      .topbar-center {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+
+      #clockDisplay {
+        font-family: var(--font-head);
+        font-size: 13px;
+        color: var(--teal2);
+        letter-spacing: 2px;
+        padding: 8px 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--glass);
+        white-space: nowrap;
+      }
+
+      .live-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        letter-spacing: 2px;
+        color: var(--good);
+        padding: 6px 12px;
+        border: 1px solid rgba(57, 255, 20, 0.3);
+        border-radius: 20px;
+        background: rgba(57, 255, 20, 0.05);
+      }
+      .live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--good);
+        animation: blink 1.2s ease infinite;
+      }
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.2;
+        }
+      }
+
+      .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      #userBadge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--glass);
+        font-size: 12px;
+        color: var(--text);
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #roleBadge {
+        font-family: var(--font-head);
+        font-size: 9px;
+        letter-spacing: 2px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: rgba(0, 229, 200, 0.12);
+        border: 1px solid var(--border);
+        color: var(--teal);
+        white-space: nowrap;
+      }
+
+      .btn-logout {
+        padding: 9px 18px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 77, 109, 0.3);
+        background: rgba(255, 77, 109, 0.08);
+        color: var(--warn);
+        font-family: var(--font-head);
+        font-size: 10px;
+        letter-spacing: 2px;
+        cursor: pointer;
+        transition: all 0.3s;
+        white-space: nowrap;
+      }
+      .btn-logout:hover {
+        background: rgba(255, 77, 109, 0.2);
+        border-color: var(--warn);
+        box-shadow: 0 0 20px rgba(255, 77, 109, 0.2);
+      }
+
+      /* HERO STATS BAR */
+      .stats-hero {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        padding: 30px 40px;
+        flex-wrap: wrap;
+      }
+
+      .stat-pill {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 18px 32px;
+        position: relative;
+      }
+      .stat-pill::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 20%;
+        bottom: 20%;
+        width: 1px;
+        background: var(--border);
+      }
+      .stat-pill:last-child::after {
+        display: none;
+      }
+
+      .stat-icon {
+        font-size: 28px;
+        filter: drop-shadow(0 0 8px var(--teal));
+      }
+      .stat-num {
+        font-family: var(--font-head);
+        font-size: 28px;
+        font-weight: 900;
+        color: var(--accent);
+        line-height: 1;
+      }
+      .stat-label {
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-top: 4px;
+      }
+
+      /* SECTION TITLE */
+      .section-title {
+        font-family: var(--font-head);
+        font-size: 11px;
+        letter-spacing: 6px;
+        color: var(--muted);
+        text-transform: uppercase;
+        text-align: center;
+        margin: 20px 0 30px;
+      }
+      .section-title span {
+        display: inline-block;
+        padding: 0 20px;
+        position: relative;
+      }
+      .section-title span::before,
+      .section-title span::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 60px;
+        height: 1px;
+        background: linear-gradient(to right, transparent, var(--border));
+      }
+      .section-title span::before {
+        right: 100%;
+      }
+      .section-title span::after {
+        left: 100%;
+        background: linear-gradient(to left, transparent, var(--border));
+      }
+
+      /* CARDS GRID */
+      .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 28px;
+        padding: 0 40px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      /* HOUSE CARD */
+      .house-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        overflow: hidden;
+        backdrop-filter: blur(20px);
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+        transition:
+          transform 0.3s ease,
+          box-shadow 0.3s ease;
+        animation: cardReveal 0.8s ease both;
+        position: relative;
+      }
+      .house-card:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      @keyframes cardReveal {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .house-card:hover {
+        transform: translateY(-6px);
+        box-shadow:
+          0 20px 60px rgba(0, 0, 0, 0.5),
+          0 0 40px rgba(0, 229, 200, 0.12);
+      }
+
+      .card-top-line {
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--teal3),
+          var(--teal),
+          var(--accent)
+        );
+      }
+      .house-card:nth-child(2) .card-top-line {
+        background: linear-gradient(90deg, #7b2fbe, var(--teal3), var(--teal2));
+      }
+
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 24px 28px 16px;
+      }
+
+      .card-title-wrap {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .house-emoji {
+        font-size: 28px;
+        filter: drop-shadow(0 0 10px var(--teal));
+      }
+      .card-h {
+        font-family: var(--font-head);
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--accent);
+        letter-spacing: 2px;
+      }
+      .card-sub {
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: 3px;
+        margin-top: 2px;
+      }
+
+      /* VALVE CHIP */
+      .valve-chip {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 14px;
+        border-radius: 20px;
+        font-family: var(--font-head);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        transition: all 0.4s ease;
+      }
+      .valve-chip.open {
+        border: 1px solid rgba(57, 255, 20, 0.4);
+        background: rgba(57, 255, 20, 0.08);
+        color: var(--good);
+        box-shadow: 0 0 15px rgba(57, 255, 20, 0.15);
+      }
+      .valve-chip.closed {
+        border: 1px solid rgba(255, 77, 109, 0.4);
+        background: rgba(255, 77, 109, 0.08);
+        color: var(--warn);
+        box-shadow: 0 0 15px rgba(255, 77, 109, 0.15);
+      }
+      .valve-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .valve-chip.open .valve-dot {
+        animation: blink 1.5s ease infinite;
+      }
+
+      /* WATER TANK VISUAL */
+      .tank-wrap {
+        padding: 10px 28px 24px;
+        display: flex;
+        align-items: flex-end;
+        gap: 24px;
+      }
+
+      .tank-outer {
+        position: relative;
+        width: 80px;
+        height: 130px;
+        border: 2px solid var(--border);
+        border-radius: 8px 8px 4px 4px;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.3);
+        flex-shrink: 0;
+      }
+      .tank-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(to top, var(--teal3), var(--teal));
+        transition: height 1s ease;
+        border-radius: 0 0 2px 2px;
+      }
+      .tank-fill::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+        animation: ripple 2s ease infinite;
+      }
+      @keyframes ripple {
+        0% {
+          transform: scaleX(1) translateX(0);
+          opacity: 0.6;
+        }
+        50% {
+          transform: scaleX(0.9) translateX(3%);
+          opacity: 0.9;
+        }
+        100% {
+          transform: scaleX(1) translateX(0);
+          opacity: 0.6;
+        }
+      }
+      .tank-label {
+        position: absolute;
+        top: 6px;
+        left: 0;
+        right: 0;
+        font-size: 10px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.3);
+        font-family: var(--font-head);
+        letter-spacing: 1px;
+      }
+      .tank-pct {
+        position: absolute;
+        bottom: 6px;
+        left: 0;
+        right: 0;
+        font-size: 11px;
+        text-align: center;
+        font-family: var(--font-head);
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      /* METRICS */
+      .metrics {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .metric-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .metric-label {
+        font-size: 10px;
+        letter-spacing: 3px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .metric-val {
+        font-family: var(--font-head);
+        font-size: 26px;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1;
+      }
+      .metric-val span {
+        font-size: 12px;
+        color: var(--muted);
+        margin-left: 4px;
+      }
+
+      /* PROGRESS BAR */
+      .prog-wrap {
+        margin-top: 2px;
+      }
+      .prog-bar {
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.06);
+        overflow: hidden;
+      }
+      .prog-fill {
+        height: 100%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--teal3), var(--teal));
+        transition: width 1s ease;
+        position: relative;
+      }
+      .prog-fill::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 20px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.5)
+        );
+        animation: progShine 2s ease infinite;
+      }
+      @keyframes progShine {
+        0%,
+        100% {
+          opacity: 0;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      .prog-nums {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      /* DIVIDER */
+      .card-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 0 28px;
+      }
+
+      /* MINI STATS ROW */
+      .mini-stats {
+        display: flex;
+        padding: 16px 28px 20px;
+        gap: 0;
+      }
+      .mini-stat {
+        flex: 1;
+        text-align: center;
+        padding: 10px 0;
+        border-right: 1px solid var(--border);
+      }
+      .mini-stat:last-child {
+        border-right: none;
+      }
+      .mini-label {
+        font-size: 9px;
+        letter-spacing: 2px;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-bottom: 5px;
+      }
+      .mini-val {
+        font-family: var(--font-head);
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+
+      /* ALERT BANNER */
+      .alert-banner {
+        display: none;
+        margin: 20px 40px 0;
+        padding: 14px 24px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 77, 109, 0.4);
+        background: rgba(255, 77, 109, 0.08);
+        color: var(--warn);
+        font-size: 13px;
+        font-family: var(--font-head);
+        letter-spacing: 1px;
+        animation: alertPulse 2s ease infinite;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        max-width: 1100px;
+        margin: 20px auto 0;
+      }
+      @keyframes alertPulse {
+        0%,
+        100% {
+          border-color: rgba(255, 77, 109, 0.4);
+        }
+        50% {
+          border-color: rgba(255, 77, 109, 0.9);
+        }
+      }
+
+      /* FOOTER */
+      .dash-footer {
+        text-align: center;
+        padding: 40px 20px 20px;
+        font-size: 10px;
+        letter-spacing: 3px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .dash-footer strong {
+        color: var(--teal);
+      }
+
+      /* ─── ANIMATIONS ─────────────────────────────────── */
+      @keyframes fadeSlideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes fadeSlideUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ─── TOAST ─────────────────────────────────────── */
+      #toast {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--accent);
+        font-family: var(--font-head);
+        font-size: 12px;
+        letter-spacing: 2px;
+        padding: 14px 28px;
+        border-radius: 30px;
+        backdrop-filter: blur(20px);
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      #toast.show {
+        opacity: 1;
+      }
+
+      /* ─── LOADING OVERLAY ────────────────────────────── */
+      #loadingOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+        background: var(--navy);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+      }
+      .loader-ring {
+        width: 60px;
+        height: 60px;
+        border: 3px solid var(--border);
+        border-top-color: var(--teal);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .loader-text {
+        font-family: var(--font-head);
+        font-size: 11px;
+        letter-spacing: 4px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      #loadingOverlay.hide {
+        animation: fadeOut 0.5s ease forwards;
+      }
+      @keyframes fadeOut {
+        to {
+          opacity: 0;
+          pointer-events: none;
+        }
+      }
+
+      /* RESPONSIVE */
+      @media (max-width: 600px) {
+        .topbar {
+          padding: 14px 16px;
+        }
+        .cards-grid {
+          padding: 0 16px;
+          gap: 20px;
+        }
+        .stats-hero {
+          padding: 20px 16px;
+        }
+        .stat-pill {
+          padding: 14px 18px;
+        }
+        .stat-num {
+          font-size: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bgCanvas"></canvas>
+
+    <div id="loadingOverlay">
+      <div class="loader-ring"></div>
+      <div class="loader-text">Initializing System</div>
+    </div>
+
+    <div id="appLayer">
+      <!-- ═══ LOGIN SCREEN ═══ -->
+      <div id="loginScreen">
+        <div class="login-logo">55 LPCD</div>
+        <div class="login-tagline">Smart Water Distribution System</div>
+
+        <div class="login-card">
+          <span class="drop-icon">💧</span>
+          <div class="login-title">AQUA MONITOR</div>
+          <p class="login-sub">
+            Real-time automated water distribution<br />
+            Equal access · Zero waste · Smart control
+          </p>
+
+          <button class="btn-login" onclick="login()">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+            SIGN IN WITH GOOGLE
+          </button>
+
+          <div class="login-footer">
+            Authorized personnel only · Rajalakshmi Engineering College
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ DASHBOARD ═══ -->
+      <div id="dashboard">
+        <!-- TOPBAR -->
+        <div class="topbar">
+          <div class="topbar-brand">
+            <div class="brand-icon">💧</div>
+            <div class="brand-text">
+              AQUA MONITOR
+              <span>55 LPCD DISTRIBUTION SYSTEM</span>
+            </div>
+          </div>
+
+          <div class="topbar-center">
+            <div id="clockDisplay">--:--:--</div>
+            <div class="live-badge">
+              <div class="live-dot"></div>
+              LIVE
+            </div>
+          </div>
+
+          <div class="topbar-right">
+            <div id="userBadge">
+              <span>👤</span>
+              <span id="userEmail">—</span>
+            </div>
+            <div id="roleBadge">—</div>
+            <button class="btn-logout" onclick="logout()">LOGOUT</button>
+          </div>
+        </div>
+
+        <!-- HERO STATS -->
+        <div class="stats-hero">
+          <div class="stat-pill">
+            <div class="stat-icon">🎯</div>
+            <div>
+              <div class="stat-num">55 L</div>
+              <div class="stat-label">Daily Limit / Person</div>
+            </div>
+          </div>
+          <div class="stat-pill" id="heroHousesStat">
+            <div class="stat-icon">🏘️</div>
+            <div>
+              <div class="stat-num" id="heroHouses">2</div>
+              <div class="stat-label">Households Active</div>
+            </div>
+          </div>
+          <div class="stat-pill">
+            <div class="stat-icon">📊</div>
+            <div>
+              <div class="stat-num" id="heroTotal">0 L</div>
+              <div class="stat-label">Total Distributed</div>
+            </div>
+          </div>
+          <div class="stat-pill">
+            <div class="stat-icon">⚡</div>
+            <div>
+              <div class="stat-num" id="heroFlow">0</div>
+              <div class="stat-label">Combined Flow (L/min)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ALERT -->
+        <div class="alert-banner" id="alertBanner">
+          ⚠️ <span id="alertText">Limit reached — valve auto-closed</span>
+        </div>
+
+        <!-- SECTION TITLE -->
+        <div class="section-title"><span>HOUSEHOLD MONITORS</span></div>
+
+        <!-- CARDS -->
+        <div class="cards-grid">
+          <!-- HOUSE 1 -->
+          <div class="house-card" id="house1Card">
+            <div class="card-top-line"></div>
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <div class="house-emoji">🏠</div>
+                <div>
+                  <div class="card-h">HOUSE 1</div>
+                  <div class="card-sub">PRIMARY UNIT</div>
+                </div>
+              </div>
+              <div class="valve-chip open" id="valveChip1">
+                <div class="valve-dot"></div>
+                <span id="valve1">OPEN</span>
+              </div>
+            </div>
+
+            <div class="tank-wrap">
+              <div class="tank-outer">
+                <div class="tank-label" id="tankLabel1">55L</div>
+                <div class="tank-fill" id="tank1" style="height: 0%"></div>
+                <div class="tank-pct" id="tankPct1">0%</div>
+              </div>
+              <div class="metrics">
+                <div class="metric-row">
+                  <div class="metric-label">Flow Rate</div>
+                  <div class="metric-val">
+                    <span id="flow1">0.00</span><span>L / min</span>
+                  </div>
+                </div>
+                <div class="metric-row">
+                  <div class="metric-label">Today's Usage</div>
+                  <div class="metric-val">
+                    <span id="total1">0.00</span><span>L</span>
+                  </div>
+                  <div class="prog-wrap">
+                    <div class="prog-bar">
+                      <div class="prog-fill" id="prog1" style="width: 0%"></div>
+                    </div>
+                    <div class="prog-nums">
+                      <span id="progLabel1">0 / 55 L</span>
+                      <span id="progPct1">0%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-divider"></div>
+            <div class="mini-stats">
+              <div class="mini-stat">
+                <div class="mini-label">Person</div>
+                <div class="mini-val" id="personCount1">1</div>
+              </div>
+              <div class="mini-stat">
+                <div class="mini-label">Status</div>
+                <div
+                  class="mini-val"
+                  id="statusBadge1"
+                  style="color: var(--good)"
+                >
+                  OK
+                </div>
+              </div>
+              <div class="mini-stat">
+                <div class="mini-label">Remaining</div>
+                <div class="mini-val" id="remaining1">55 L</div>
+              </div>
+              <div class="mini-stat">
+                <div class="mini-label">Usage</div>
+                <div class="mini-val" id="usagePct1">0%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HOUSE 2 -->
+          <div class="house-card" id="house2Card">
+            <div class="card-top-line"></div>
+            <div class="card-header">
+              <div class="card-title-wrap">
+                <div class="house-emoji">🏡</div>
+                <div>
+                  <div class="card-h">HOUSE 2</div>
+                  <div class="card-sub">SECONDARY UNIT</div>
+                </div>
+              </div>
+              <div class="valve-chip open" id="valveChip2">
+                <div class="valve-dot"></div>
+                <span id="valve2">OPEN</span>
+              </div>
+            </div>
+
+            <div class="tank-wrap">
+              <div class="tank-outer">
+                <div class="tank-label" id="tankLabel2">220L</div>
+                <div class="tank-fill" id="tank2" style="height: 0%"></div>
+                <div class="tank-pct" id="tankPct2">0%</div>
+              </div>
+              <div class="metrics">
+                <div class="metric-row">
+                  <div class="metric-label">Flow Rate</div>
+                  <div class="metric-val">
+                    <span id="flow2">0.00</span><span>L / min</span>
+                  </div>
+                </div>
+                <div class="metric-row">
+                  <div class="metric-label">Today's Usage</div>
+                  <div class="metric-val">
+                    <span id="total2">0.00</span><span>L</span>
+                  </div>
+                  <div class="prog-wrap">
+                    <div class="prog-bar">
+                      <div class="prog-fill" id="prog2" style="width: 0%"></div>
+                    </div>
+                    <div class="prog-nums">
+                      <span id="progLabel2">0 / 220 L</span>
+                      <span id="progPct2">0%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-divider"></div>
+            <div class="mini-stats">
+              <div class="mini-stat">
+                <div class="mini-label">Person</div>
+                <div class="mini-val" id="personCount2">4</div>
+              </div>
+              <div class="mini-stat">
+                <div class="mini-label">Status</div>
+                <div
+                  class="mini-val"
+                  id="statusBadge2"
+                  style="color: var(--good)"
+                >
+                  OK
+                </div>
+              </div>
+              <div class="mini-stat">
+                <div class="mini-label">Remaining</div>
+                <div class="mini-val" id="remaining2">55 L</div>
+              </div>
+              <div class="mini-stat">
+                <div class="mini-label">Usage</div>
+                <div class="mini-val" id="usagePct2">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /cards-grid -->
+
+        <!-- FOOTER -->
+        <div class="dash-footer">
+          <strong>55 LPCD Automated Water Distribution</strong><br />
+          Rajalakshmi Engineering College · ESP32 + Firebase IoT Platform
+        </div>
+      </div>
+      <!-- /dashboard -->
+    </div>
+    <!-- /appLayer -->
+
+    <div id="toast"></div>
+
+    <!-- ═══════════════ SCRIPTS ═══════════════ -->
+    <script>
+      /* ── CANVAS PARTICLE BG ──────────────────────────── */
+      (function () {
+        const canvas = document.getElementById("bgCanvas");
+        const ctx = canvas.getContext("2d");
+        let W,
+          H,
+          particles = [];
+
+        function resize() {
+          W = canvas.width = window.innerWidth;
+          H = canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+          constructor() {
+            this.reset();
+          }
+          reset() {
+            this.x = Math.random() * W;
+            this.y = Math.random() * H;
+            this.r = Math.random() * 1.5 + 0.3;
+            this.vx = (Math.random() - 0.5) * 0.3;
+            this.vy = -Math.random() * 0.6 - 0.1;
+            this.a = Math.random() * 0.4 + 0.1;
+            this.life = 1;
+            this.decay = Math.random() * 0.003 + 0.001;
+          }
+          update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.life -= this.decay;
+            if (this.life <= 0 || this.y < -10) this.reset();
+          }
+          draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(0,220,190,${this.a * this.life})`;
+            ctx.fill();
+          }
+        }
+
+        for (let i = 0; i < 120; i++) particles.push(new Particle());
+
+        function loop() {
+          ctx.clearRect(0, 0, W, H);
+          for (const p of particles) {
+            p.update();
+            p.draw();
+          }
+
+          // connecting lines between close particles
+          for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+              const dx = particles[i].x - particles[j].x;
+              const dy = particles[i].y - particles[j].y;
+              const d = Math.sqrt(dx * dx + dy * dy);
+              if (d < 80) {
+                ctx.beginPath();
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.strokeStyle = `rgba(0,200,180,${0.06 * (1 - d / 80)})`;
+                ctx.lineWidth = 0.5;
+                ctx.stroke();
+              }
+            }
+          }
+          requestAnimationFrame(loop);
+        }
+
+        window.addEventListener("resize", resize);
+        resize();
+        loop();
+      })();
+
+      /* ── FIREBASE INIT ───────────────────────────────── */
+      const firebaseConfig = {
+        apiKey: "AIzaSyDBU-ewiaOm-FfeUKjji6djh5UDnCI2xqg",
+        authDomain: "review-3-599f7.firebaseapp.com",
+        databaseURL:
+          "https://review-3-599f7-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "review-3-599f7",
+        storageBucket: "review-3-599f7.appspot.com",
+        messagingSenderId: "123456789",
+        appId: "1:123456789:web:abcd1234",
+      };
+      firebase.initializeApp(firebaseConfig);
+      const provider = new firebase.auth.GoogleAuthProvider();
+
+      /* ── HELPERS ─────────────────────────────────────── */
+      function showToast(msg, duration = 3000) {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(() => t.classList.remove("show"), duration);
+      }
+
+      function hideLoader() {
+        const ol = document.getElementById("loadingOverlay");
+        ol.classList.add("hide");
+        setTimeout(() => (ol.style.display = "none"), 600);
+      }
+
+      /* ── LOGIN / LOGOUT ──────────────────────────────── */
+      function login() {
+        firebase
+          .auth()
+          .signInWithPopup(provider)
+          .catch((e) => showToast("⚠ " + e.message));
+      }
+      function logout() {
+        firebase
+          .auth()
+          .signOut()
+          .then(() => {
+            document.getElementById("dashboard").style.display = "none";
+            document.getElementById("loginScreen").style.display = "flex";
+            showToast("👋 Signed out successfully");
+          });
+      }
+
+      /* ── AUTH STATE ──────────────────────────────────── */
+      firebase.auth().onAuthStateChanged((user) => {
+        hideLoader();
+        if (user) {
+          document.getElementById("loginScreen").style.display = "none";
+          document.getElementById("dashboard").style.display = "block";
+          document.getElementById("userEmail").textContent = user.email;
+
+          const email = user.email;
+          const roleMap = {
+            "jeswinaarong@gmail.com": "ADMIN",
+            "jeswinaaron2005@gmail.com": "HOUSE 1",
+            "231201013@rajalakshmi.edu.in": "HOUSE 2",
+          };
+
+          const role = roleMap[email];
+          if (!role) {
+            showToast("⛔ Unauthorized user");
+            logout();
+            return;
+          }
+
+          document.getElementById("roleBadge").textContent = role;
+          showToast("✅ Welcome, " + email.split("@")[0]);
+
+          if (role === "ADMIN") {
+            document.getElementById("heroHousesStat").style.display = "";
+            document.getElementById("heroHouses").textContent = "2";
+            document.getElementById("house1Card").style.display = "";
+            document.getElementById("house2Card").style.display = "";
+            loadHouse(1);
+            loadHouse(2);
+          } else if (role === "HOUSE 1") {
+            document.getElementById("heroHousesStat").style.display = "none";
+            document.getElementById("house1Card").style.display = "";
+            document.getElementById("house2Card").style.display = "none";
+            loadHouse(1);
+          } else if (role === "HOUSE 2") {
+            document.getElementById("heroHousesStat").style.display = "none";
+            document.getElementById("house1Card").style.display = "none";
+            document.getElementById("house2Card").style.display = "";
+            loadHouse(2);
+          }
+        } else {
+          document.getElementById("loginScreen").style.display = "flex";
+          document.getElementById("dashboard").style.display = "none";
+        }
+      });
+
+      /* ── DATA LOADER ─────────────────────────────────── */
+      const BASE_LIMIT = 55;
+      const HOUSE_PERSONS = { 1: 1, 2: 4 };
+      const totals = { 1: 0, 2: 0 };
+      const flows = { 1: 0, 2: 0 };
+
+      function getHouseLimit(n) {
+        return BASE_LIMIT * (HOUSE_PERSONS[n] || 1);
+      }
+
+      function loadHouse(n) {
+        firebase
+          .database()
+          .ref("sensorData/house" + n)
+          .on("value", (snap) => {
+            const data = snap.val();
+            if (!data) return;
+            updateCard(
+              n,
+              data.flow || 0,
+              data.total || 0,
+              data.valve || "OPEN",
+            );
+          });
+      }
+
+      function updateCard(n, flow, total, valve) {
+        const limit = getHouseLimit(n);
+        const pct = Math.min((total / limit) * 100, 100);
+        const remain = Math.max(limit - total, 0);
+
+        // text values
+        document.getElementById("flow" + n).textContent =
+          parseFloat(flow).toFixed(2);
+        document.getElementById("total" + n).textContent =
+          parseFloat(total).toFixed(2);
+        document.getElementById("valve" + n).textContent = valve;
+
+        // progress bar
+        document.getElementById("prog" + n).style.width = pct.toFixed(1) + "%";
+        document.getElementById("progLabel" + n).textContent =
+          total.toFixed(1) + " / " + limit + " L";
+        document.getElementById("progPct" + n).textContent =
+          pct.toFixed(0) + "%";
+
+        // tank fill
+        document.getElementById("tank" + n).style.height = pct.toFixed(1) + "%";
+        document.getElementById("tankPct" + n).textContent =
+          pct.toFixed(0) + "%";
+        document.getElementById("tankLabel" + n).textContent = limit + "L";
+
+        // mini stats
+        document.getElementById("remaining" + n).textContent =
+          remain.toFixed(1) + " L";
+        document.getElementById("usagePct" + n).textContent =
+          pct.toFixed(0) + "%";
+
+        // valve chip style
+        const chip = document.getElementById("valveChip" + n);
+        chip.className =
+          "valve-chip " + (valve === "CLOSED" ? "closed" : "open");
+
+        // status
+        const sb = document.getElementById("statusBadge" + n);
+        if (valve === "CLOSED" || pct >= 100) {
+          sb.textContent = "FULL";
+          sb.style.color = "var(--warn)";
+        } else if (pct >= 80) {
+          sb.textContent = "HIGH";
+          sb.style.color = "#ffaa00";
+        } else {
+          sb.textContent = "OK";
+          sb.style.color = "var(--good)";
+        }
+
+        // store for hero stats
+        totals[n] = total;
+        flows[n] = flow;
+        updateHeroStats();
+
+        // alert banner
+        checkAlerts();
+      }
+
+      function updateHeroStats() {
+        const t = totals[1] + totals[2];
+        const f = flows[1] + flows[2];
+        document.getElementById("heroTotal").textContent = t.toFixed(1) + " L";
+        document.getElementById("heroFlow").textContent =
+          parseFloat(f).toFixed(2);
+      }
+
+      function checkAlerts() {
+        const banner = document.getElementById("alertBanner");
+        const v1 = document.getElementById("valve1").textContent;
+        const v2 = document.getElementById("valve2").textContent;
+        if (v1 === "CLOSED" || v2 === "CLOSED") {
+          banner.style.display = "flex";
+          const msgs = [];
+          if (v1 === "CLOSED") msgs.push("House 1 limit reached");
+          if (v2 === "CLOSED") msgs.push("House 2 limit reached");
+          document.getElementById("alertText").textContent =
+            msgs.join(" · ") + " — Solenoid valve auto-closed";
+        } else {
+          banner.style.display = "none";
+        }
+      }
+
+      /* ── REAL-TIME CLOCK ─────────────────────────────── */
+      function updateClock() {
+        const now = new Date();
+        const h = now.getHours().toString().padStart(2, "0");
+        const m = now.getMinutes().toString().padStart(2, "0");
+        const s = now.getSeconds().toString().padStart(2, "0");
+        const d = now.toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+        document.getElementById("clockDisplay").textContent =
+          d + "  ·  " + h + ":" + m + ":" + s;
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+    </script>
+  </body>
+</html>
